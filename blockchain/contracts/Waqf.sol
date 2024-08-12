@@ -7,9 +7,9 @@ contract Waqf {
     address public beneficiary;
     uint256 public balance;
 
-    constructor(string memory _name, address _beneficiary) {
+    constructor(string memory _name, address _founder, address _beneficiary) {
         name = _name;
-        founder = msg.sender;
+        founder = _founder;
         beneficiary = _beneficiary;
     }
 

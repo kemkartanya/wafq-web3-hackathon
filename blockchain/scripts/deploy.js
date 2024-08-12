@@ -1,23 +1,20 @@
 const hre = require("hardhat");
-require("dotenv").config();
-
-const ADDRESS = process.env.ADDRESS;
 
 async function main() {
-  const Waqf = await hre.ethers.getContractFactory("Waqf");
+  const [deployer] = await hre.ethers.getSigners();
 
-  console.log("Deploying Waqf...");
-  const waqf = await Waqf.deploy("My First Waqf", ADDRESS);
-  await waqf.deployed();
+  const token = await hre.ethers.deployContract("WaqfFactory", ["WaqfFactory", "WAQFFACTORY", deployer.address]);
 
-  console.log("Waqf deployed to:", waqf.address);
+  await token.waitForDeployment();
+
+  console.log(
+    `Token deployed to ${token.target}`
+  );
 }
 
 // We recommend this pattern to be able to use async/await everywhere
 // and properly handle errors.
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  });
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

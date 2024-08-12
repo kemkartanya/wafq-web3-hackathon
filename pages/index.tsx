@@ -17,7 +17,7 @@ const Home: NextPage = () => {
 
       <main className={styles.main}>
         <h1>EthicalWaqf</h1>
-        <h3>Empowering Ethical Giving, One Waqf at a Time</h3>
+        <h3>Empowering Ethical Giving, One Waqf at a Time</h3> <br/>
         <ConnectButton />
         <Contract />
       </main>

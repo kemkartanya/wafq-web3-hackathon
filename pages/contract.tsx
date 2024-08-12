@@ -1,6 +1,5 @@
-import type { NextPage } from "next";
+import { NextPage } from "next";
 import {
-  useAccount,
   useContractRead,
   useContractWrite,
   usePrepareContractWrite,
@@ -13,179 +12,122 @@ import { formatEther, parseEther } from "viem";
 import styles from "../styles/Home.module.css";
 
 const Contract: NextPage = () => {
-  const { address: connectedAddress } = useAccount();
+  const [donationAmount, setDonationAmount] = useState<string>("");
+  const [debouncedDonationAmount] = useDebounce(donationAmount, 500);
 
-  const [transferAddress, setTransferAddress] = useState();
-  const [debouncedTo] = useDebounce(transferAddress, 500);
+  const [distributionAmount, setDistributionAmount] = useState<string>("");
+  const [debouncedDistributionAmount] = useDebounce(distributionAmount, 500);
 
-  const [transferAmount, setTransferAmount] = useState();
-  const [debouncedAmount] = useDebounce(transferAmount, 500);
-
-  const [WaqfRecipient, setWaqfRecipient] = useState();
-  const [debouncedWaqfRecipient] = useDebounce(WaqfRecipient, 500);
-
-  // Read the percentage of Waqf that is distributed to charity
-  const { data: percentage } = useContractRead({
-    // @ts-ignore
-    address: contractAddress,
+  // Read the contract's balance
+  const { data: contractBalance } = useContractRead({
+    address: `0x${contractAddress}`,
     abi: abi,
-    functionName: "WaqfPercentage",
-  });
-
-  // Read the charity address
-  const { data: currentWaqfRecipient } = useContractRead({
-    // @ts-ignore
-    address: contractAddress,
-    abi: abi,
-    functionName: "getUserWaqfRecipient",
-    args: [connectedAddress],
+    functionName: "balance",
     watch: true,
   });
 
-  // Read the token balance
-  const { data: tokenBalance } = useContractRead({
-    // @ts-ignore
-    address: contractAddress,
+  // Prepare to donate to the Waqf
+  const { config: donateConfig } = usePrepareContractWrite({
+    address: `0x${contractAddress}`,
     abi: abi,
-    functionName: "balanceOf",
-    args: [connectedAddress],
-    watch: true,
+    functionName: "donate",
+    value: debouncedDonationAmount
+      ? parseEther(debouncedDonationAmount)
+      : undefined,
   });
 
-  // Read the distributed Waqf
-  const { data: distributedWaqf } = useContractRead({
-    // @ts-ignore
-    address: contractAddress,
+  // Prepare to distribute funds from the Waqf
+  const { config: distributeConfig } = usePrepareContractWrite({
+    address: `0x${contractAddress}`,
     abi: abi,
-    functionName: "distributedWaqf",
-    watch: true,
-  });
-
-  const { config: transferConfig } = usePrepareContractWrite({
-    // @ts-ignore
-    address: contractAddress,
-    abi: abi,
-    functionName: "transfer",
+    functionName: "distribute",
     args: [
-      debouncedTo,
-      debouncedAmount ? parseEther(debouncedAmount) : undefined,
+      debouncedDistributionAmount
+        ? parseEther(debouncedDistributionAmount)
+        : undefined,
     ],
   });
 
-  const { config: WaqfRecipientConfig } = usePrepareContractWrite({
-    // @ts-ignore
-    address: contractAddress,
-    abi: abi,
-    functionName: "setUserWaqfRecipient",
-    args: [debouncedWaqfRecipient],
-  });
+  const { data: donationResult, write: writeDonation } =
+    useContractWrite(donateConfig);
+  const { data: distributionResult, write: writeDistribution } =
+    useContractWrite(distributeConfig);
 
-  const { data: transferResult, write: writeTransfer } =
-    useContractWrite(transferConfig);
-  const { data: WaqfRecipientResult, write: writeWaqfRecipient } =
-    useContractWrite(WaqfRecipientConfig);
-
-  const { isLoading: isTransferLoading, isSuccess: isTransferSuccess } =
+  const { isLoading: isDonationLoading, isSuccess: isDonationSuccess } =
     useWaitForTransaction({
-      hash: transferResult?.hash,
+      hash: donationResult?.hash,
     });
 
-  const { isLoading: isWaqfLoading, isSuccess: isWaqfSuccess } =
+  const { isLoading: isDistributionLoading, isSuccess: isDistributionSuccess } =
     useWaitForTransaction({
-      hash: WaqfRecipientResult?.hash,
+      hash: distributionResult?.hash,
     });
-
-  const addTokenToMM = async () => {
-    // @ts-ignore
-    const result = await window.ethereum?.request({
-      method: "wallet_watchAsset",
-      params: {
-        type: "ERC20",
-        options: {
-          address: contractAddress,
-          decimals: 18,
-          name: "Waqf",
-          symbol: "Waqf",
-        },
-      },
-    });
-  };
-
-  function formatPercentageString(inputString: string) {
-    // Convert the input string to a number and divide by 10 to get the desired format
-    const num = parseFloat(inputString) / 10;
-
-    // Convert the number to a string with one decimal place and replace the dot with a comma
-    return num.toFixed(1).replace(".", ",");
-  }
 
   return (
     <div>
-      {/* <h3>Contract details</h3> */}
-      {/* <p className={styles.description}>Address: {contractAddress}</p> */}
-      {/*@ts-ignore*/}
-      {/* <p className={styles.description}>Charity Address: {!currentWaqfRecipient ? 'Loading...' : currentWaqfRecipient}</p>
-            <p className={styles.description}>Waqf percentage: {!percentage ? 'Loading...' : formatPercentageString(percentage.toString())}%</p>
-            <p className={styles.description}>Token balance: {!tokenBalance ? '0' : formatEther(tokenBalance as bigint, "wei")} Waqf</p>
-            <p className={styles.description}>Distributed Waqf: {!distributedWaqf ? '0' : formatEther(distributedWaqf as bigint, "wei")} Waqf</p> */}
-      <h3>Transfer</h3>
+      <h3>Contract Balance</h3>
+      <p className={styles.description}>
+        Balance:{" "}
+        {contractBalance ? formatEther(contractBalance as bigint) : "0"} ETH
+      </p>
+
+      <h3>Donate to Waqf</h3>
       <input
         className={styles.input}
-        placeholder="Recipient"
-        onChange={(e) => {
-          // @ts-ignore
-          setTransferAddress(e.target.value);
-        }}
-      />
-      <input
-        className={styles.input}
-        placeholder="Amount"
-        onChange={(e) => {
-          // @ts-ignore
-          setTransferAmount(e.target.value);
-        }}
+        placeholder="Amount in ETH"
+        onChange={(e) => setDonationAmount(e.target.value)}
       />
       <button
         className={styles.button}
-        disabled={!writeTransfer || isTransferLoading}
-        onClick={() => writeTransfer?.()}
+        disabled={!writeDonation || isDonationLoading}
+        onClick={() => writeDonation?.()}
       >
-        {isTransferLoading ? "Transferring..." : "Transfer"}
+        {isDonationLoading ? "Donating..." : "Donate"}
       </button>
-      {isTransferSuccess && (
+      {isDonationSuccess && (
         <div>
-          Successfully transferred!
+          Successfully donated!
           <div>
             <a
               className={styles.card}
-              href={`https://explorer.testedge2.haqq.network/tx/${transferResult?.hash}`}
+              href={`https://explorer.testedge2.haqq.network/tx/${donationResult?.hash}`}
               target="_blank"
+              rel="noopener noreferrer"
             >
               Link to explorer
             </a>
           </div>
         </div>
       )}
-      {/* <h3>Set Waqf recipient</h3>
-            <input className={styles.input} placeholder="Address" onChange={(e) => {
-                // @ts-ignore
-                setWaqfRecipient(e.target.value);
-            }}/>
-            <button className={styles.button} disabled={!writeWaqfRecipient || isWaqfLoading} onClick={() => writeWaqfRecipient?.()}>
-                {isWaqfLoading ? 'Setting...' : 'Set'}
-            </button> */}
-      {/* {isWaqfSuccess && (
-                <div>
-                    Successfully set!
-                    <div>
-                        <a className={styles.card} href={`https://explorer.testedge2.haqq.network/tx/${WaqfRecipientResult?.hash}`} target="_blank">Link
-                            to explorer</a>
-                    </div>
-                </div>
-            )} */}
-      {/* <br/>
-            <br/> */}
-      {/* <button className={styles.button} onClick={addTokenToMM}>Import Token</button> */}
+
+      <h3>Distribute Funds</h3>
+      <input
+        className={styles.input}
+        placeholder="Amount in ETH"
+        onChange={(e) => setDistributionAmount(e.target.value)}
+      />
+      <button
+        className={styles.button}
+        disabled={!writeDistribution || isDistributionLoading}
+        onClick={() => writeDistribution?.()}
+      >
+        {isDistributionLoading ? "Distributing..." : "Distribute"}
+      </button>
+      {isDistributionSuccess && (
+        <div>
+          Successfully distributed!
+          <div>
+            <a
+              className={styles.card}
+              href={`https://explorer.testedge2.haqq.network/tx/${distributionResult?.hash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Link to explorer
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
